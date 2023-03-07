@@ -20,7 +20,8 @@ async fn index_events(relayurl: String) -> String {
     // Send the subscription message
     let subscription_id = "my_subscription";
     let filter = json!({
-        "kinds": [40]
+        "kinds": [42],
+        "limit": 100
     });
     let message = json!(["REQ", subscription_id, filter]);
     ws_stream
@@ -41,51 +42,6 @@ async fn index_events(relayurl: String) -> String {
 
     format!("Indexing {}...", &relayurl)
 }
-
-// #[tauri::command]
-// async fn index_events(relayurl: String) -> String {
-//     format!("Indexing {}...", relayurl);
-
-//     // Open a WebSocket connection to the relay
-//     let url = Url::parse(&relayurl).unwrap();
-//     let port = url.port().unwrap_or(80);
-//     let addrs = url.socket_addrs(|| Some(port)).unwrap();
-//     let stream = TcpStream::connect(&addrs[..]).await.unwrap();
-//     let ws = WebSocket::from_raw_socket(stream, Role::Client, None)
-//         .await
-//         .unwrap();
-//     let mut ws_stream = WebSocketStream::new(ws);
-
-//     // Send a test message to the relay
-//     ws_stream
-//         .send(Message::Text("Hello, relay!".into()))
-//         .await
-//         .unwrap();
-
-//     // Receive messages from the relay
-//     while let Some(message) = ws_stream.next().await {
-//         match message.unwrap() {
-//             Message::Text(text) => {
-//                 println!("Received text message from relay: {}", text);
-//             }
-//             Message::Binary(_) => {
-//                 println!("Received binary message from relay");
-//             }
-//             Message::Ping(_) => {
-//                 println!("Received ping message from relay");
-//             }
-//             Message::Pong(_) => {
-//                 println!("Received pong message from relay");
-//             }
-//             Message::Close(_) => {
-//                 println!("Received close message from relay");
-//                 break;
-//             }
-//         }
-//     }
-
-//     "WebSocket connection closed".to_string()
-// }
 
 fn main() {
     tauri::Builder::default()
