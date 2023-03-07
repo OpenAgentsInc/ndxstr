@@ -18,7 +18,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = "1.26.0"
 url = "2.3.1"
-tokio-tungstenite = "0.18.0"
+tokio-tungstenite = { version = "0.18.0", features = ["native-tls"] }
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
