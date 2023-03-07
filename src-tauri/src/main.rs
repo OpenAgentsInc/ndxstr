@@ -2,7 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use futures::stream::StreamExt;
-use tokio_tungstenite::connect_async;
+use futures::SinkExt;
+use serde_json::json;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -14,6 +16,17 @@ async fn index_events(relayurl: String) -> String {
     // Connect to the WebSocket server
     let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
     println!("Connected to url: {}", relayurl);
+
+    // Send the subscription message
+    let subscription_id = "my_subscription";
+    let filter = json!({
+        "kinds": [40]
+    });
+    let message = json!(["REQ", subscription_id, filter]);
+    ws_stream
+        .send(Message::Text(message.to_string()))
+        .await
+        .expect("Failed to send message");
 
     // Receive and print the events from the server
     while let Some(msg) = ws_stream.next().await {
