@@ -13,7 +13,7 @@ async fn index_events(relayurl: String) -> String {
 
     // Connect to the WebSocket server
     let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-    println!("WebSocket handshake has been successfully completed");
+    println!("Connected to url: {}", relayurl);
 
     // Receive and print the events from the server
     while let Some(msg) = ws_stream.next().await {
