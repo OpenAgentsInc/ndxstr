@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use futures::stream::StreamExt;
 use tokio_tungstenite::connect_async;
 use url::Url;
 
@@ -11,8 +12,19 @@ async fn index_events(relayurl: String) -> String {
     let url = Url::parse(&relayurl).unwrap();
 
     // Connect to the WebSocket server
-    let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
+    let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
     println!("WebSocket handshake has been successfully completed");
+
+    // Receive and print the events from the server
+    while let Some(msg) = ws_stream.next().await {
+        match msg {
+            Ok(msg) => println!("Received message: {:?}", msg),
+            Err(e) => {
+                eprintln!("WebSocket error: {}", e);
+                break;
+            }
+        }
+    }
 
     format!("Indexing {}...", &relayurl)
 }
