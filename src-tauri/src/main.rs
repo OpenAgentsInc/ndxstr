@@ -78,17 +78,19 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     let mut relays = HashSet::new();
     for event in rows.unwrap() {
         for tag_result in event.tags {
-            if let Ok(tag) = tag_result {
-                for t in tag {
-                    if t.len() >= 2 && t.starts_with('r') {
-                        relays.insert(t[1..].to_string());
+            match tag_result {
+                Ok(tag) => {
+                    for t in tag {
+                        if t.len() >= 2 && t.starts_with('r') {
+                            relays.insert(t[1..].to_string());
+                        }
                     }
                 }
-            } else if let Err(e) = tag_result {
-                return Err(format!("{}", e));
+                Err(e) => return Err(format!("{}", e)),
             }
         }
     }
+
     Ok(relays.into_iter().collect())
 }
 
