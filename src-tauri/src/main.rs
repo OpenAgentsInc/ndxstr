@@ -69,10 +69,19 @@ async fn index_events(relayurl: String) -> String {
         .await
         .expect("Failed to send message");
 
-    // Receive and print the events from the server
+    // Receive and process the events from the server
     while let Some(msg) = ws_stream.next().await {
         match msg {
-            Ok(msg) => println!("Received message: {:?}", msg),
+            Ok(msg) => {
+                if let Message::Text(text) = msg {
+                    if let Ok((_, _, event)) = serde_json::from_str::<(_, _, Event)>(&text) {
+                        println!("Received event: {:?}", event);
+                        // TODO: add the event to the database
+                    } else {
+                        eprintln!("Failed to deserialize event: {:?}", text);
+                    }
+                }
+            }
             Err(e) => {
                 eprintln!("WebSocket error: {}", e);
                 break;

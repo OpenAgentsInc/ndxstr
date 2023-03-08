@@ -4,7 +4,7 @@ import "./App.css";
 
 function App() {
   const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+  const [name, setName] = useState("wss://arc1.arcadelabs.co");
 
   async function greet() {
     // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -29,6 +29,7 @@ function App() {
             id="greet-input"
             onChange={(e) => setName(e.currentTarget.value)}
             placeholder="Enter a relay URL..."
+            value={name}
           />
           <button type="submit">Index</button>
         </form>
