@@ -54,9 +54,12 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     // Query the database for all events with kind 10002 and map the results to a Vec of Event structs
     let rows: Result<Vec<Event>, mysql::Error> = conn
         .query_map(
-            "SELECT tags FROM events WHERE kind = 10002",
+            "SELECT tags FROM events WHERE kind = 10002 LIMIT 5",
             |row: mysql::Row| {
+                // log the row
+                println!("Row: {:?}", row);
                 let tags: String = row.get(0).unwrap();
+                println!("Tags: {:?}", tags);
                 serde_json::from_str::<Event>(&tags).map_err(|e| {
                     let err: Box<dyn Error + Send + Sync> = Box::new(e);
                     err
@@ -64,6 +67,7 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
             },
         )
         .map(|result| {
+            println!("Raw results: {:?}", result);
             result
                 .into_iter()
                 .filter_map(|result| match result {
@@ -79,7 +83,6 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     let mut relays = HashSet::new();
     for event in rows.unwrap() {
         for tag_result in event.tags {
-            println!("Processing tag: {:?}", tag_result);
             match serde_json::from_value::<Vec<String>>(json!(tag_result)) {
                 Ok(tag) => {
                     for t in tag {
