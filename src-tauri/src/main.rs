@@ -43,6 +43,20 @@ pub struct Event {
     pub tagidx: Option<HashMap<char, HashSet<String>>>,
 }
 
+#[tauri::command]
+async fn fetch_events_count() -> Result<usize, String> {
+    let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
+    let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
+    let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
+    let mut conn = pool.get_conn().unwrap();
+
+    let count: Option<usize> = conn
+        .query_first("SELECT COUNT(*) FROM events")
+        .map_err(|err| format!("Failed to fetch events count: {:?}", err))?;
+
+    Ok(count.unwrap_or(0))
+}
+
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 async fn index_events(relayurl: String) -> String {
@@ -63,7 +77,7 @@ async fn index_events(relayurl: String) -> String {
     let subscription_id = "my_subscription";
     let filter = json!({
         "kinds": [42],
-        "limit": 100
+        "limit": 1000
     });
     let message = json!(["REQ", subscription_id, filter]);
     ws_stream
@@ -86,13 +100,13 @@ async fn index_events(relayurl: String) -> String {
 
                                     // Prepare the SQL statement
                                     let stmt = _conn
-                                    .prep(
-                                        "
-                                        INSERT INTO events (id, pubkey, delegated_by, created_at, kind, tags, content, sig)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                        ",
-                                    )
-                                    .unwrap();
+                                        .prep(
+                                            "
+                                            INSERT INTO events (id, pubkey, delegated_by, created_at, kind, tags, content, sig)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                            ",
+                                        )
+                                        .unwrap();
                                     // Bind parameters to the statement
                                     let params = (
                                         event.id,
@@ -101,7 +115,7 @@ async fn index_events(relayurl: String) -> String {
                                         event.created_at,
                                         event.kind,
                                         serde_json::to_string(&event.tags).unwrap(),
-                                        event.content,
+                                        serde_json::to_string(&event.content).unwrap(),
                                         event.sig,
                                     );
                                     // Execute the statement with the bound parameters
@@ -135,6 +149,7 @@ async fn index_events(relayurl: String) -> String {
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![index_events])
+        .invoke_handler(tauri::generate_handler![fetch_events_count])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
