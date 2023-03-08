@@ -75,9 +75,11 @@ async fn index_events(relayurl: String) -> String {
 
     // Send the subscription message
     let subscription_id = "my_subscription";
+    let since_timestamp = (chrono::Utc::now() - chrono::Duration::minutes(3)).timestamp();
     let filter = json!({
-        "kinds": [42],
-        "limit": 1000
+        "kinds": [1, 42],
+        "limit": 5000,
+        "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
     ws_stream
@@ -148,8 +150,7 @@ async fn index_events(relayurl: String) -> String {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![index_events])
-        .invoke_handler(tauri::generate_handler![fetch_events_count])
+        .invoke_handler(tauri::generate_handler![fetch_events_count, index_events])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
