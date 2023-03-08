@@ -3,13 +3,53 @@
 
 use futures::stream::StreamExt;
 use futures::SinkExt;
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::env;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
+
+/// Simple tag type for array of array of strings.
+type Tag = Vec<Vec<String>>;
+
+/// Deserializer that ensures we always have a [`Tag`].
+fn tag_from_string<'de, D>(deserializer: D) -> Result<Tag, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt = Option::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
+pub struct Event {
+    pub id: String,
+    pub pubkey: String,
+    #[serde(skip)]
+    pub delegated_by: Option<String>,
+    pub created_at: u64,
+    pub kind: u64,
+    #[serde(deserialize_with = "tag_from_string")]
+    // NOTE: array-of-arrays may need to be more general than a string container
+    pub tags: Vec<Vec<String>>,
+    pub content: String,
+    pub sig: String,
+    // Optimization for tag search, built on demand.
+    #[serde(skip)]
+    pub tagidx: Option<HashMap<char, HashSet<String>>>,
+}
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
 async fn index_events(relayurl: String) -> String {
+    let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
+    let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
+    let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
+    let _conn = pool.get_conn().unwrap();
+    println!("Successfully connected to PlanetScale!");
+
     // Parse the relayurl string as a URL
     let url = Url::parse(&relayurl).unwrap();
 
