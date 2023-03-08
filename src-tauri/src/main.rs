@@ -75,6 +75,7 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     let mut relays = HashSet::new();
     for event in rows.unwrap() {
         for tag_result in event.tags {
+            println!("Tag result: {:?}", tag_result);
             match serde_json::from_value::<Vec<String>>(json!(tag_result)) {
                 Ok(tag) => {
                     for t in tag {
