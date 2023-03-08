@@ -54,9 +54,10 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     // Query the database for all events with kind 10002 and map the results to a Vec of Event structs
     let rows: Result<Vec<Event>, mysql::Error> = conn
         .query_map(
-            "SELECT JSON_ARRAYAGG(tags->>'$[0]') FROM events WHERE kind = 10002 LIMIT 5",
+            "SELECT JSON_ARRAYAGG(JSON_EXTRACT(tags, '$[0]')) FROM events WHERE kind = 10002 LIMIT 5",
             |row: mysql::Row| {
                 let tags: String = row.get(0).unwrap();
+                println!("Tags: {}", tags);
                 serde_json::from_str::<Event>(&tags).map_err(|e| {
                     let err: Box<dyn Error + Send + Sync> = Box::new(e);
                     err
