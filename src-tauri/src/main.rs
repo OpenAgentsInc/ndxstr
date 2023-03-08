@@ -3,6 +3,8 @@
 
 use futures::stream::StreamExt;
 use futures::SinkExt;
+use mysql::prelude::Queryable;
+use mysql::Statement;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
@@ -47,7 +49,7 @@ async fn index_events(relayurl: String) -> String {
     let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
     let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
     let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
-    let _conn = pool.get_conn().unwrap();
+    let mut _conn = pool.get_conn().unwrap();
     println!("Successfully connected to PlanetScale!");
 
     // Parse the relayurl string as a URL
@@ -74,11 +76,49 @@ async fn index_events(relayurl: String) -> String {
         match msg {
             Ok(msg) => {
                 if let Message::Text(text) = msg {
-                    if let Ok((_, _, event)) = serde_json::from_str::<(_, _, Event)>(&text) {
-                        println!("Received event: {:?}", event);
-                        // TODO: add the event to the database
+                    if let Ok(event) = serde_json::from_str::<serde_json::Value>(&text) {
+                        if let Some(event_array) = event.as_array() {
+                            if event_array.len() >= 2 && event_array[0] == "EVENT" {
+                                if let Ok(event) =
+                                    serde_json::from_value::<Event>(event_array[2].clone())
+                                {
+                                    println!("Received event: {:?}", event);
+
+                                    // Prepare the SQL statement
+                                    let stmt = _conn
+                                    .prep(
+                                        "
+                                        INSERT INTO events (id, pubkey, delegated_by, created_at, kind, tags, content, sig)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                        ",
+                                    )
+                                    .unwrap();
+                                    // Bind parameters to the statement
+                                    let params = (
+                                        event.id,
+                                        event.pubkey,
+                                        event.delegated_by,
+                                        event.created_at,
+                                        event.kind,
+                                        serde_json::to_string(&event.tags).unwrap(),
+                                        event.content,
+                                        event.sig,
+                                    );
+                                    // Execute the statement with the bound parameters
+                                    if let Err(err) =
+                                        _conn.exec::<usize, &Statement, _>(&stmt, params)
+                                    {
+                                        eprintln!("Failed to execute statement: {:?}", err);
+                                    }
+                                } else {
+                                    eprintln!("Failed to deserialize event: {:?}", text);
+                                }
+                            }
+                        } else {
+                            eprintln!("Received non-array event: {:?}", text);
+                        }
                     } else {
-                        eprintln!("Failed to deserialize event: {:?}", text);
+                        eprintln!("Failed to parse event: {:?}", text);
                     }
                 }
             }
