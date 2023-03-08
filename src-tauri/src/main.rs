@@ -53,32 +53,34 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
 
     // Query the database for all events with kind 10002 and map the results to a Vec of Event structs
     let rows: Result<Vec<Event>, mysql::Error> = conn
-        // Use `query_map` to map each row of the result set to an `Event` struct
         .query_map(
-            // Select the `tags` column from the `events` table where `kind` equals 10002
             "SELECT tags FROM events WHERE kind = 10002",
             |row: mysql::Row| {
-                // Get the `tags` value from the row as a `String`
                 let tags: String = row.get(0).unwrap();
-                // Deserialize the `tags` value as an `Event` struct, or return an error if deserialization fails
                 serde_json::from_str::<Event>(&tags).map_err(|e| {
                     let err: Box<dyn Error + Send + Sync> = Box::new(e);
                     err
                 })
             },
         )
-        // Collect the results into a `Vec<Event>`, filtering out any errors that occur during deserialization
         .map(|result| {
             result
                 .into_iter()
-                .filter_map(|result| result.ok())
+                .filter_map(|result| match result {
+                    Ok(event) => Some(event),
+                    Err(e) => {
+                        eprintln!("Failed to deserialize event: {}", e);
+                        None
+                    }
+                })
                 .collect()
         });
 
     let mut relays = HashSet::new();
     for event in rows.unwrap() {
         for tag_result in event.tags {
-            match tag_result {
+            println!("Processing tag: {:?}", tag_result);
+            match serde_json::from_value::<Vec<String>>(json!(tag_result)) {
                 Ok(tag) => {
                     for t in tag {
                         if t.len() >= 2 && t.starts_with('r') {
@@ -86,7 +88,7 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
                         }
                     }
                 }
-                Err(e) => return Err(format!("{}", e)),
+                Err(e) => eprintln!("Failed to deserialize tag: {}", e),
             }
         }
     }
