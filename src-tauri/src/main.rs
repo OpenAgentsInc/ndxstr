@@ -44,6 +44,42 @@ pub struct Event {
 }
 
 #[tauri::command]
+async fn build_relay_list() -> Result<Vec<String>, String> {
+    let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
+    let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
+    let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
+    let mut conn = pool.get_conn().unwrap();
+
+    let rows: Result<Vec<Event>, mysql::Error> = conn
+        .query_map(
+            "SELECT tags FROM events WHERE kind = 10002",
+            |row: mysql::Row| {
+                let tags: String = row.get(0).unwrap();
+                println!("tags: {}", tags);
+                serde_json::from_str::<Event>(&tags).map_err(|e| format!("{}", e))
+            },
+        )
+        .map(|result| {
+            result
+                .into_iter()
+                .filter_map(|result| result.ok())
+                .collect()
+        });
+
+    // log rows to console
+    let mut relays = HashSet::new();
+    for event in rows.map_err(|e| format!("{}", e))? {
+        println!("event: {:?}", event);
+        for tag in event.tags {
+            if tag.len() >= 2 && tag[0] == "r" {
+                relays.insert(tag[1].clone());
+            }
+        }
+    }
+    Ok(relays.into_iter().collect())
+}
+
+#[tauri::command]
 async fn fetch_events_count() -> Result<usize, String> {
     let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
     let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
@@ -77,9 +113,9 @@ async fn index_events(relayurl: String) -> String {
     let subscription_id = "my_subscription";
     let since_timestamp = (chrono::Utc::now() - chrono::Duration::minutes(3)).timestamp();
     let filter = json!({
-        "kinds": [1, 42],
-        "limit": 5000,
-        "since": since_timestamp,
+        "kinds": [10002],
+        "limit": 3,
+        // "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
     ws_stream
@@ -150,7 +186,11 @@ async fn index_events(relayurl: String) -> String {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![fetch_events_count, index_events])
+        .invoke_handler(tauri::generate_handler![
+            build_relay_list,
+            fetch_events_count,
+            index_events
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

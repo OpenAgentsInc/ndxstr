@@ -8,9 +8,9 @@ function App() {
     const [eventCount, setEventCount] = useState(0);
     const [name, setName] = useState("wss://arc1.arcadelabs.co");
 
-    // async function buildRelayList() {
-    //     await invoke("build_relay_list")
-    // }
+    async function buildRelayList() {
+        console.log(await invoke("build_relay_list"))
+    }
 
     async function fetchEventsCount() {
         const count = await invoke("fetch_events_count") as number
@@ -51,6 +51,8 @@ function App() {
                     />
                     <button type="submit">Index</button>
                 </form>
+
+                <button onClick={buildRelayList}>Build relay list</button>
             </div>
             <p>{greetMsg}</p>
         </div>
