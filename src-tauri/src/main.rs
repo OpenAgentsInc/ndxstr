@@ -10,6 +10,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
+use std::error::Error;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
@@ -50,15 +51,23 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
     let mut conn = pool.get_conn().unwrap();
 
+    // Query the database for all events with kind 10002 and map the results to a Vec of Event structs
     let rows: Result<Vec<Event>, mysql::Error> = conn
+        // Use `query_map` to map each row of the result set to an `Event` struct
         .query_map(
+            // Select the `tags` column from the `events` table where `kind` equals 10002
             "SELECT tags FROM events WHERE kind = 10002",
             |row: mysql::Row| {
+                // Get the `tags` value from the row as a `String`
                 let tags: String = row.get(0).unwrap();
-                println!("tags: {}", tags);
-                serde_json::from_str::<Event>(&tags).map_err(|e| format!("{}", e))
+                // Deserialize the `tags` value as an `Event` struct, or return an error if deserialization fails
+                serde_json::from_str::<Event>(&tags).map_err(|e| {
+                    let err: Box<dyn Error + Send + Sync> = Box::new(e);
+                    err
+                })
             },
         )
+        // Collect the results into a `Vec<Event>`, filtering out any errors that occur during deserialization
         .map(|result| {
             result
                 .into_iter()
@@ -66,13 +75,17 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
                 .collect()
         });
 
-    // log rows to console
     let mut relays = HashSet::new();
-    for event in rows.map_err(|e| format!("{}", e))? {
-        println!("event: {:?}", event);
-        for tag in event.tags {
-            if tag.len() >= 2 && tag[0] == "r" {
-                relays.insert(tag[1].clone());
+    for event in rows.unwrap() {
+        for tag_result in event.tags {
+            if let Ok(tag) = tag_result {
+                for t in tag {
+                    if t.len() >= 2 && t.starts_with('r') {
+                        relays.insert(t[1..].to_string());
+                    }
+                }
+            } else if let Err(e) = tag_result {
+                return Err(format!("{}", e));
             }
         }
     }
@@ -162,7 +175,9 @@ async fn index_events(relayurl: String) -> String {
                                     {
                                         eprintln!("Failed to execute statement: {:?}", err);
                                     }
-                                } else {
+                                } else if let Err(e) =
+                                    serde_json::from_value::<Event>(event_array[2].clone())
+                                {
                                     eprintln!("Failed to deserialize event: {:?}", text);
                                 }
                             }
