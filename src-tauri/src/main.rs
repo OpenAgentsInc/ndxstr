@@ -4,13 +4,13 @@
 use futures::stream::StreamExt;
 use futures::SinkExt;
 use mysql::prelude::Queryable;
+// use mysql::prelude::TextQuery;
 use mysql::Statement;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
-use std::error::Error;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
 
@@ -45,51 +45,33 @@ pub struct Event {
 }
 
 #[tauri::command]
-async fn build_relay_list() -> Result<Vec<String>, String> {
-    let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
+async fn build_relay_list() -> Result<Vec<Option<String>>, String> {
+    // Get the database URL from the environment variables
+    let url = env::var("DATABASE_URL").map_err(|_| "DATABASE_URL not found".to_string())?;
+
+    // Create a connection pool and get a connection from it
     let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
     let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
     let mut conn = pool.get_conn().unwrap();
 
-    // Query the database for all events with kind 10002 and map the results to a Vec of Event structs
-    let rows: Result<Vec<Event>, mysql::Error> = conn
+    // Query the database for relay URLs
+    let rows: Result<
+        Vec<std::option::Option<std::option::Option<std::string::String>>>,
+        std::string::String,
+    > = conn
         .query_map(
-            "SELECT JSON_ARRAYAGG(JSON_EXTRACT(tags, '$[0]')) FROM events WHERE kind = 10002 LIMIT 5",
-            |row: mysql::Row| {
-                let tags: String = row.get(0).unwrap();
-                println!("Tags: {}", tags);
-                serde_json::from_str::<Event>(&tags).map_err(|e| {
-                    let err: Box<dyn Error + Send + Sync> = Box::new(e);
-                    err
-                })
-            },
+            "SELECT JSON_EXTRACT(tags, '$[0][1]') FROM events WHERE kind = 10002",
+            |row: mysql::Row| row.get::<Option<String>, _>(0),
         )
-        .map(|result| {
-            println!("Raw results: {:?}", result);
-            result
-                .into_iter()
-                .filter_map(|result| result.ok())
-                .collect()
-        });
+        .map_err(|err| format!("Failed to fetch relays: {:?}", err));
 
+    // Deduplicate and return the relay URLs
     let mut relays = HashSet::new();
-    for event in rows.unwrap() {
-        for tag_result in event.tags {
-            println!("Tag result: {:?}", tag_result);
-            match serde_json::from_value::<Vec<String>>(serde_json::to_value(&tag_result).unwrap())
-            {
-                Ok(tag) => {
-                    for t in tag {
-                        if t.len() >= 2 && t.starts_with('r') {
-                            relays.insert(t[1..].to_string());
-                        }
-                    }
-                }
-                Err(e) => eprintln!("Failed to deserialize tag: {}", e),
-            }
+    for row in rows.unwrap() {
+        if let Some(url) = row {
+            relays.insert(url);
         }
     }
-
     Ok(relays.into_iter().collect())
 }
 
