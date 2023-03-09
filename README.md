@@ -1,17 +1,18 @@
 # ndxstr
 
-This is a desktop app that connects to lots of Nostr relays and saves events to a MySQL database.
-
-* Desktop app stuff: [Tauri](http://tauri.app/)
-* Frontend: React, TypeScript, Vite
-* Backend: Rust
-
-Super pre-alpha, not quite ready for others to use.
-
-You can follow along with our development in the [Building Arc](https://thearcapp.com/videos) video series starting in [video 38](https://thearcapp.com/video/38) where we discuss the need for an event indexer for [Arc](https://thearcapp.com).
+This is a TypeScript/Rust desktop app that connects to lots of Nostr relays and saves events to a MySQL database.
 
 ![ndxstr indexing](/public/indexing.png)
 
+### Tech stack
+
+* Backend: Rust
+* Frontend: React, TypeScript, Vite
+* Desktop stuff: [Tauri](http://tauri.app/)
+
+### Why
+
+You can follow along with our development in the [Building Arc](https://thearcapp.com/videos) video series starting in [video 38](https://thearcapp.com/video/38) where we discuss the need for an event indexer for [Arc](https://thearcapp.com).
 
 ### Recommended IDE Setup
 
