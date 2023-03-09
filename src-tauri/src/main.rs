@@ -76,7 +76,8 @@ async fn build_relay_list() -> Result<Vec<String>, String> {
     for event in rows.unwrap() {
         for tag_result in event.tags {
             println!("Tag result: {:?}", tag_result);
-            match serde_json::from_value::<Vec<String>>(json!(tag_result)) {
+            match serde_json::from_value::<Vec<String>>(serde_json::to_value(&tag_result).unwrap())
+            {
                 Ok(tag) => {
                     for t in tag {
                         if t.len() >= 2 && t.starts_with('r') {
