@@ -110,9 +110,10 @@ async fn index_events(relayurl: String) -> String {
     let subscription_id = "my_subscription";
     let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(14)).timestamp();
     let filter = json!({
-        "kinds": [0, 1, 40, 41, 42, 43, 44, 10002],
-        "limit": 5000,
-        "since": since_timestamp,
+        // "kinds": [10002],
+        "kinds": [2, 40, 41, 42, 43, 44, 9734, 9735, 10002],
+        "limit": 10000,
+        // "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
     ws_stream
@@ -135,12 +136,12 @@ async fn index_events(relayurl: String) -> String {
 
                                     // Prepare the SQL statement
                                     let stmt = _conn
-                                        .prep(
-                                            "
-                                            INSERT INTO events (id, pubkey, delegated_by, created_at, kind, tags, content, sig)
-                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                            ",
-                                        )
+                                    .prep(
+                                        "
+                                        INSERT INTO events (id, pubkey, delegated_by, created_at, kind, tags, content, sig, relayurl)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        ",
+                                    )
                                         .unwrap();
                                     // Bind parameters to the statement
                                     let params = (
@@ -152,6 +153,7 @@ async fn index_events(relayurl: String) -> String {
                                         serde_json::to_string(&event.tags).unwrap(),
                                         serde_json::to_string(&event.content).unwrap(),
                                         event.sig,
+                                        &relayurl,
                                     );
                                     // Execute the statement with the bound parameters
                                     if let Err(err) =
@@ -180,7 +182,7 @@ async fn index_events(relayurl: String) -> String {
         }
     }
 
-    format!("Indexing {}...", &relayurl)
+    format!("Indexing {}...", relayurl)
 }
 
 fn main() {

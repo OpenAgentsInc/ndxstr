@@ -14,7 +14,8 @@ function App() {
     const cleanedUrls = urls
       .filter((url) => url && url.startsWith('"wss://'))
       .map((url) => url.replace(/\\/g, '').replace(/"/g, ''))
-    console.log('cleaned:', cleanedUrls)
+    console.log(`Fetched ${cleanedUrls.length} relay URLs`, cleanedUrls)
+    return cleanedUrls
   }
 
   async function fetchEventsCount() {
@@ -30,6 +31,19 @@ function App() {
   async function greet() {
     setGreetMsg(`Indexing ${name}...`)
     invoke('index_events', { relayurl: name })
+  }
+
+  async function indexEvents(url: string) {
+    setGreetMsg(`Indexing ${url}...`)
+    invoke('index_events', { relayurl: url })
+  }
+
+  async function doit() {
+    const urls = await buildRelayList()
+    for (const url of urls) {
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+      await indexEvents(url)
+    }
   }
 
   return (
@@ -61,7 +75,10 @@ function App() {
 
         <button onClick={buildRelayList}>Build relay list</button>
       </div>
+
       <p>{greetMsg}</p>
+
+      <button onClick={doit}>Go crazy</button>
     </div>
   )
 }
