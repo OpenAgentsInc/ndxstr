@@ -9,7 +9,10 @@ function App() {
     const [name, setName] = useState("wss://arc1.arcadelabs.co");
 
     async function buildRelayList() {
-        console.log(await invoke("build_relay_list"))
+        const urls = await invoke("build_relay_list") as string[]
+        console.log("messyRelays: ", urls)
+        const cleanedUrls = urls.filter(url => url && url.startsWith("\"wss://")).map(url => url.replace(/\\/g, '').replace(/"/g, ''));
+        console.log('cleaned:', cleanedUrls);
     }
 
     async function fetchEventsCount() {

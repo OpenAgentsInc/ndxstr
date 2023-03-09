@@ -72,6 +72,7 @@ async fn build_relay_list() -> Result<Vec<Option<String>>, String> {
             relays.insert(url);
         }
     }
+    println!("Relays: {:?}", relays);
     Ok(relays.into_iter().collect())
 }
 
@@ -107,11 +108,11 @@ async fn index_events(relayurl: String) -> String {
 
     // Send the subscription message
     let subscription_id = "my_subscription";
-    let since_timestamp = (chrono::Utc::now() - chrono::Duration::minutes(3)).timestamp();
+    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(2)).timestamp();
     let filter = json!({
-        "kinds": [10002],
-        "limit": 3,
-        // "since": since_timestamp,
+        "kinds": [0, 1, 10002],
+        "limit": 500,
+        "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
     ws_stream
