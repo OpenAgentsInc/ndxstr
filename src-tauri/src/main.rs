@@ -108,10 +108,10 @@ async fn index_events(relayurl: String) -> String {
 
     // Send the subscription message
     let subscription_id = "my_subscription";
-    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(2)).timestamp();
+    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(14)).timestamp();
     let filter = json!({
-        "kinds": [0, 1, 10002],
-        "limit": 500,
+        "kinds": [0, 1, 40, 41, 42, 43, 44, 10002],
+        "limit": 5000,
         "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
