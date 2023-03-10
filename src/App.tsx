@@ -1,12 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/tauri'
 import './App.css'
 import { useInterval } from './hooks'
+import { appWindow } from '@tauri-apps/api/window'
 
 function App() {
   const [greetMsg, setGreetMsg] = useState('')
   const [eventCount, setEventCount] = useState(0)
   const [name, setName] = useState('wss://arc1.arcadelabs.co')
+
+  const listen = async () => {
+    const listener = await appWindow.listen(
+      'got-an-event',
+      ({ event, payload }) => console.log(payload)
+    )
+    console.log(listener)
+  }
+
+  useEffect(() => {
+    listen()
+  }, [])
 
   async function buildRelayList() {
     const urls = (await invoke('build_relay_list')) as string[]

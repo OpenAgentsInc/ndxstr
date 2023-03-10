@@ -11,8 +11,17 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
+use tauri::window;
+use tauri::Manager;
+use tauri::Window;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
+
+#[derive(serde::Serialize)]
+struct RelayConnectionStatus {
+    url: String,
+    connected: bool,
+}
 
 /// Simple tag type for array of array of strings.
 type Tag = Vec<Vec<String>>;
@@ -92,7 +101,7 @@ async fn fetch_events_count() -> Result<usize, String> {
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
-async fn index_events(relayurl: String) -> String {
+async fn index_events(relayurl: String, window: Window) -> String {
     let url = env::var("DATABASE_URL").expect("DATABASE_URL not found");
     let builder = mysql::OptsBuilder::from_opts(mysql::Opts::from_url(&url).unwrap());
     let pool = mysql::Pool::new(builder.ssl_opts(mysql::SslOpts::default())).unwrap();
@@ -133,6 +142,7 @@ async fn index_events(relayurl: String) -> String {
                                     serde_json::from_value::<Event>(event_array[2].clone())
                                 {
                                     println!("Received event: {:?}", event);
+                                    window.emit("got-an-event", "yay!");
 
                                     // Prepare the SQL statement
                                     let stmt = _conn
@@ -177,6 +187,8 @@ async fn index_events(relayurl: String) -> String {
             }
             Err(e) => {
                 eprintln!("WebSocket error: {}", e);
+                window.emit("ERROR", Some(e.to_string())).unwrap();
+                // Emit an event when the connection is closed
                 break;
             }
         }
