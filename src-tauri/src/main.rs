@@ -118,22 +118,18 @@ async fn index_events(relayurl: String, window: Window) -> String {
     let mut ws_stream = match result {
         Ok((ws_stream, _)) => {
             println!("Successfully connected to WebSocket server: {}", relayurl);
+            let status = json!({ "relayUrl": relayurl, "status": "connected" });
             window
-                .emit(
-                    "relay-connection-change",
-                    format!("Connected to url: {}", relayurl),
-                )
+                .emit("relay-connection-change", status.to_string())
                 .unwrap();
             ws_stream
         }
         Err(err) => {
-            eprintln!("Failed to connect to WebSocket server: {}", err);
+            let status = json!({ "relayUrl": relayurl, "status": "notconnected" });
             window
-                .emit(
-                    "relay-connection-change",
-                    format!("Failed to connect to url: {}", relayurl),
-                )
+                .emit("relay-connection-change", status.to_string())
                 .unwrap();
+            eprintln!("Failed to connect to WebSocket server: {}", err);
             return format!("Failed to connect to WebSocket server: {}", err);
         }
     };
@@ -147,18 +143,18 @@ async fn index_events(relayurl: String, window: Window) -> String {
 
     // Send the subscription message
     let subscription_id = "my_subscription";
-    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(2)).timestamp();
+    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(24)).timestamp();
     let filter = json!({
         // "kinds": [10002],
-        "kinds": [0, 2, 40, 41, 42, 43, 44, 9734, 9735, 10002],
+        "kinds": [0, 1, 2, 3, 4, 5, 6, 7, 40, 41, 42, 43, 44, 9734, 9735, 10002],
         "limit": 10000,
         "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
-    // ws_stream
-    //     .send(Message::Text(message.to_string()))
-    //     .await
-    //     .expect("Failed to send message");
+    ws_stream
+        .send(Message::Text(message.to_string()))
+        .await
+        .expect("Failed to send message");
 
     // Receive and process the events from the server
     while let Some(msg) = ws_stream.next().await {
@@ -220,11 +216,9 @@ async fn index_events(relayurl: String, window: Window) -> String {
             }
             Err(e) => {
                 eprintln!("WebSocket error: {}", e);
+                let status = json!({ "relayUrl": relayurl, "status": "disconnected" });
                 window
-                    .emit(
-                        "relay-connection-change",
-                        format!("Error with url: {}", relayurl),
-                    )
+                    .emit("relay-connection-change", status.to_string())
                     .unwrap();
                 // Emit an event when the connection is closed
                 break;

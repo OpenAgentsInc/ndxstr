@@ -4,19 +4,35 @@ import './App.css'
 import { useInterval } from './hooks'
 import { appWindow } from '@tauri-apps/api/window'
 
+interface ConnectionStatusPayload {
+  relayUrl: string
+  status: 'connected' | 'disconnected' | 'notconnected'
+}
+
 function App() {
   const [greetMsg, setGreetMsg] = useState('')
   const [eventCount, setEventCount] = useState(0)
+  const [relayStates, setRelayStates] = useState({})
   const [name, setName] = useState('wss://arc1.arcadelabs.co')
+
+  useEffect(() => {
+    console.log(relayStates)
+  }, [relayStates])
 
   const listen = async () => {
     await appWindow.listen('got-an-event', ({ event, payload }) =>
       console.log(payload)
     )
 
-    await appWindow.listen('relay-connection-change', ({ event, payload }) =>
-      console.log(payload)
-    )
+    await appWindow.listen('relay-connection-change', ({ payload }: any) => {
+      const { relayUrl, status } = JSON.parse(
+        payload
+      ) as ConnectionStatusPayload
+      setRelayStates((prevState) => ({
+        ...prevState,
+        [relayUrl]: status,
+      }))
+    })
   }
 
   useEffect(() => {
@@ -41,7 +57,7 @@ function App() {
 
   useInterval(() => {
     fetchEventsCount()
-  }, 1000)
+  }, 5000)
 
   async function greet() {
     setGreetMsg(`Indexing ${name}...`)
@@ -56,7 +72,7 @@ function App() {
   async function doit() {
     const urls = await buildRelayList()
     for (const url of urls) {
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+      await new Promise((resolve) => setTimeout(resolve, 2000))
       await indexEvents(url)
     }
   }
@@ -94,6 +110,14 @@ function App() {
       <p>{greetMsg}</p>
 
       <button onClick={doit}>Go crazy</button>
+
+      <ul>
+        {Object.entries(relayStates).map(([relayUrl, status]) => (
+          <li key={relayUrl}>
+            <p>{`${relayUrl}: ${status}`}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
