@@ -11,8 +11,6 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
-use tauri::window;
-use tauri::Manager;
 use tauri::Window;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
@@ -112,23 +110,55 @@ async fn index_events(relayurl: String, window: Window) -> String {
     let url = Url::parse(&relayurl).unwrap();
 
     // Connect to the WebSocket server
-    let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
-    println!("Connected to url: {}", relayurl);
+    // let (mut ws_stream, _) = connect_async(url).await.expect("Failed to connect");
+    // println!("Connected to url: {}", relayurl);
+
+    // Connect to the WebSocket server
+    let result = connect_async(url).await;
+    let mut ws_stream = match result {
+        Ok((ws_stream, _)) => {
+            println!("Successfully connected to WebSocket server: {}", relayurl);
+            window
+                .emit(
+                    "relay-connection-change",
+                    format!("Connected to url: {}", relayurl),
+                )
+                .unwrap();
+            ws_stream
+        }
+        Err(err) => {
+            eprintln!("Failed to connect to WebSocket server: {}", err);
+            window
+                .emit(
+                    "relay-connection-change",
+                    format!("Failed to connect to url: {}", relayurl),
+                )
+                .unwrap();
+            return format!("Failed to connect to WebSocket server: {}", err);
+        }
+    };
+
+    // window
+    //     .emit(
+    //         "relay-connection-change",
+    //         format!("Connected to url: {}", relayurl),
+    //     )
+    //     .unwrap();
 
     // Send the subscription message
     let subscription_id = "my_subscription";
-    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(14)).timestamp();
+    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(2)).timestamp();
     let filter = json!({
         // "kinds": [10002],
-        "kinds": [2, 40, 41, 42, 43, 44, 9734, 9735, 10002],
+        "kinds": [0, 2, 40, 41, 42, 43, 44, 9734, 9735, 10002],
         "limit": 10000,
-        // "since": since_timestamp,
+        "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
-    ws_stream
-        .send(Message::Text(message.to_string()))
-        .await
-        .expect("Failed to send message");
+    // ws_stream
+    //     .send(Message::Text(message.to_string()))
+    //     .await
+    //     .expect("Failed to send message");
 
     // Receive and process the events from the server
     while let Some(msg) = ws_stream.next().await {
@@ -141,8 +171,11 @@ async fn index_events(relayurl: String, window: Window) -> String {
                                 if let Ok(event) =
                                     serde_json::from_value::<Event>(event_array[2].clone())
                                 {
-                                    println!("Received event: {:?}", event);
-                                    window.emit("got-an-event", "yay!");
+                                    // println!("Received event: {:?}", event.id);
+                                    // log received event kind and id
+                                    println!("Received event: {:?}", event.kind);
+                                    // println!("Received event: {:?}", event);
+                                    // window.emit("got-an-event", "Got an event.").unwrap();
 
                                     // Prepare the SQL statement
                                     let stmt = _conn
@@ -187,7 +220,12 @@ async fn index_events(relayurl: String, window: Window) -> String {
             }
             Err(e) => {
                 eprintln!("WebSocket error: {}", e);
-                window.emit("ERROR", Some(e.to_string())).unwrap();
+                window
+                    .emit(
+                        "relay-connection-change",
+                        format!("Error with url: {}", relayurl),
+                    )
+                    .unwrap();
                 // Emit an event when the connection is closed
                 break;
             }

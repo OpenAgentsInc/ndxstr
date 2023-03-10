@@ -10,11 +10,13 @@ function App() {
   const [name, setName] = useState('wss://arc1.arcadelabs.co')
 
   const listen = async () => {
-    const listener = await appWindow.listen(
-      'got-an-event',
-      ({ event, payload }) => console.log(payload)
+    await appWindow.listen('got-an-event', ({ event, payload }) =>
+      console.log(payload)
     )
-    console.log(listener)
+
+    await appWindow.listen('relay-connection-change', ({ event, payload }) =>
+      console.log(payload)
+    )
   }
 
   useEffect(() => {
