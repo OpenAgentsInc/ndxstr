@@ -4,13 +4,17 @@
 use futures::stream::StreamExt;
 use futures::SinkExt;
 use mysql::prelude::Queryable;
-// use mysql::prelude::TextQuery;
 use mysql::Statement;
+use postgres::Config;
+use postgres::{Client, NoTls};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
+use std::io::Read;
+use std::net::{TcpListener, TcpStream};
+use std::path::Path;
 use tauri::Window;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use url::Url;
@@ -51,6 +55,81 @@ pub struct Event {
     pub tagidx: Option<HashMap<char, HashSet<String>>>,
 }
 
+#[tauri::command]
+async fn move_events() -> Result<String, String> {
+    // Get the database URL from the environment variable
+    let connection_string =
+        env::var("FORGE_DATABASE_URL").map_err(|_| "FORGE_DATABASE_URL not found".to_string())?;
+
+    println!("Connection string set...");
+
+    // Parse the database URL to get the host and port
+    let url = url::Url::parse(&connection_string).map_err(|err| err.to_string())?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "Invalid database URL".to_string())?;
+    let port = url.port().unwrap_or(5432);
+
+    // Set up an SSH tunnel to the remote server
+    let ssh_key_path = Path::new("/Users/christopherdavid/.ssh/id_ed25519");
+    let ssh_username = "forge";
+    let ssh_host = "127.0.0.1";
+    let ssh_port = 22;
+    let local_port = 5432; // the local port to forward to
+
+    println!("ssh infos set");
+
+    let tcp_stream = TcpStream::connect((ssh_host, ssh_port)).map_err(|err| err.to_string())?;
+    println!("1");
+    let mut ssh_session = ssh2::Session::new().unwrap();
+    println!("2");
+    ssh_session.set_tcp_stream(tcp_stream);
+    println!("3");
+    ssh_session.handshake().unwrap();
+    println!("4");
+    ssh_session
+        .userauth_pubkey_file(ssh_username, None, ssh_key_path, None)
+        .map_err(|err| err.to_string())?;
+
+    println!("tcpstream something maybe...");
+
+    let listener =
+        TcpListener::bind(format!("127.0.0.1:{}", local_port)).map_err(|err| err.to_string())?;
+
+    println!("listener set...");
+
+    let mut stream = ssh_session
+        .channel_direct_tcpip(host, port, None)
+        .map_err(|err| err.to_string())?;
+
+    let mut client_stream = listener.accept().map_err(|err| err.to_string())?.0;
+    std::thread::spawn(move || {
+        std::io::copy(&mut stream, &mut client_stream).unwrap();
+    });
+
+    // Configure the PostgreSQL client
+    let mut config = Config::new();
+    config.host("127.0.0.1");
+    config.port(local_port);
+    config.user(url.username());
+    config.password(url.password().unwrap_or(""));
+    config.dbname(url.path().trim_start_matches("/"));
+
+    // Connect to the database
+    let mut client = config.connect(NoTls).map_err(|err| err.to_string())?;
+    println!("Connected maybe?");
+
+    // Use the client to execute SQL queries
+    let rows = client
+        .query("SELECT * FROM channels", &[])
+        .map_err(|err| err.to_string())?;
+    for row in rows {
+        let value: i32 = row.get(0);
+        println!("Value: {}", value);
+    }
+
+    Ok("Hello from Rust".to_string())
+}
 #[tauri::command]
 async fn build_relay_list() -> Result<Vec<Option<String>>, String> {
     // Get the database URL from the environment variables
@@ -143,11 +222,9 @@ async fn index_events(relayurl: String, window: Window) -> String {
 
     // Send the subscription message
     let subscription_id = "my_subscription";
-    let since_timestamp = (chrono::Utc::now() - chrono::Duration::hours(24)).timestamp();
+    let since_timestamp = (chrono::Utc::now() - chrono::Duration::weeks(8)).timestamp();
     let filter = json!({
-        // "kinds": [10002],
-        "kinds": [0, 1, 2, 3, 4, 5, 6, 7, 40, 41, 42, 43, 44, 9734, 9735, 10002],
-        "limit": 10000,
+        "kinds": [0, 40, 41, 42, 43, 44, 9734, 9735, 10002],
         "since": since_timestamp,
     });
     let message = json!(["REQ", subscription_id, filter]);
@@ -234,7 +311,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             build_relay_list,
             fetch_events_count,
-            index_events
+            index_events,
+            move_events
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

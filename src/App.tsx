@@ -15,6 +15,11 @@ function App() {
   const [relayStates, setRelayStates] = useState({})
   const [name, setName] = useState('wss://arc1.arcadelabs.co')
 
+  const move = async () => {
+    await invoke('move_events')
+    console.log('movin')
+  }
+
   useEffect(() => {
     console.log(relayStates)
   }, [relayStates])
@@ -108,6 +113,10 @@ function App() {
       </div>
 
       <p>{greetMsg}</p>
+
+      <button onClick={move} style={{ marginBottom: 15 }}>
+        Move good channels & messages to API
+      </button>
 
       <button onClick={doit}>Go crazy</button>
 

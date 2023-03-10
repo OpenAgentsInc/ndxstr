@@ -22,6 +22,8 @@ tokio-tungstenite = { version = "0.18.0", features = ["native-tls"] }
 futures = "0.3.26"
 mysql = "23.0.1"
 chrono = "0.4.23"
+postgres = "0.19.4"
+ssh2 = "0.9.4"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
